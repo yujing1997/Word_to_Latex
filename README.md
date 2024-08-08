@@ -1,5 +1,7 @@
 # DOCX to LaTeX Converter
 
+# DOCX to LaTeX Converter
+
 This project provides a Python script to convert a Microsoft Word document (.docx) into a LaTeX document. The script handles various elements such as text, headings, images, tables, and equations, and generates a zipped folder containing the LaTeX project, ready for upload to Overleaf.
 
 ## Features
@@ -9,12 +11,15 @@ This project provides a Python script to convert a Microsoft Word document (.doc
 - Creates a LaTeX document with proper formatting.
 - Generates a ZIP file containing the LaTeX project for easy upload to Overleaf.
 - Displays progress bars for different stages of processing (paragraphs, tables, images, and equations).
+- Automatically converts special characters to LaTeX format.
+- Logs any errors encountered during the conversion process, especially missing images.
 
 ## Requirements
 
 - Python 3.x
 - `python-docx`
 - `pylatex`
+- `pylatexenc`
 - `tqdm`
 
 ## Installation
@@ -22,11 +27,10 @@ This project provides a Python script to convert a Microsoft Word document (.doc
 1. Clone the repository or download the script file.
 2. Install the required Python packages:
     ```bash
-    pip install python-docx pylatex tqdm
+    pip install python-docx pylatex pylatexenc tqdm
     ```
 
 ## Usage
-
 
 ### Instructions for Running the Script:
 
@@ -35,7 +39,7 @@ This project provides a Python script to convert a Microsoft Word document (.doc
 2. **Run the Script from the Terminal:**
    Use the following command format to run the script:
    ```bash
-   python docx_to_latex_converter.py <path_to_docx_file> <output_directory>
+   python main.py <path_to_docx_file> <output_directory>
 
 
 ## Example

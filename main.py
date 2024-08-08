@@ -15,14 +15,23 @@ Author: Yujing Zou, August, 2024
 
 import os
 import sys
+import logging
 from docx import Document
 from pylatex import Document as LatexDocument, Section, Subsection, Command, Package, Figure, Table, Tabular
 from pylatex.utils import NoEscape
+from pylatexenc.latexencode import utf8tolatex
 import zipfile
 from tqdm import tqdm
 
+# Set up logging
+logging.basicConfig(filename='conversion_errors.log', level=logging.ERROR, 
+                    format='%(asctime)s:%(levelname)s:%(message)s')
+
 class DocxToLatexConverter:
     def __init__(self, docx_path, output_dir):
+        if not os.path.exists(docx_path):
+            raise FileNotFoundError(f"The DOCX file was not found at the specified path: {docx_path}")
+        
         self.docx_path = docx_path
         self.output_dir = output_dir
         self.latex_dir = os.path.join(output_dir, 'latex')
@@ -35,22 +44,26 @@ class DocxToLatexConverter:
         if not os.path.exists(self.images_dir):
             os.makedirs(self.images_dir)
         for i, rel in enumerate(self.doc.part.rels):
-            if "image" in self.doc.part.rels[rel].target_ref:
-                img = self.doc.part.rels[rel].target_part.blob
-                img_name = f"image{i}.png"
-                with open(os.path.join(self.images_dir, img_name), "wb") as f:
-                    f.write(img)
-        self.image_count = len(self.doc.part.rels)
+            try:
+                if "image" in self.doc.part.rels[rel].target_ref:
+                    img = self.doc.part.rels[rel].target_part.blob
+                    img_name = f"image{i}.png"
+                    with open(os.path.join(self.images_dir, img_name), "wb") as f:
+                        f.write(img)
+            except Exception as e:
+                logging.error(f"Failed to extract image {i}: {e}")
+        self.image_count = len(os.listdir(self.images_dir))
     
     def handle_paragraph(self, paragraph):
+        latex_text = utf8tolatex(paragraph.text)
         if paragraph.style.name.startswith('Heading'):
             level = int(paragraph.style.name.split()[-1])
             if level == 1:
-                self.latex_doc.append(Section(paragraph.text))
+                self.latex_doc.append(Section(latex_text))
             else:
-                self.latex_doc.append(Subsection(paragraph.text))
+                self.latex_doc.append(Subsection(latex_text))
         else:
-            self.latex_doc.append(paragraph.text)
+            self.latex_doc.append(latex_text)
             self.latex_doc.append('\n\n')
     
     def handle_table(self, table):
@@ -58,14 +71,14 @@ class DocxToLatexConverter:
         tab = Tabular('|' + 'c|' * num_cols)
         tab.add_hline()
         for row in table.rows:
-            tab.add_row([cell.text for cell in row.cells])
+            tab.add_row([utf8tolatex(cell.text) for cell in row.cells])
             tab.add_hline()
         with self.latex_doc.create(Table(position='h!')) as _table:
             _table.add_caption('Table')
             _table.append(tab)
     
     def handle_equation(self, equation):
-        self.latex_doc.append(NoEscape(r'\[' + equation.text + r'\]'))
+        self.latex_doc.append(NoEscape(r'\[' + utf8tolatex(equation.text) + r'\]'))
     
     def convert(self):
         os.makedirs(self.images_dir, exist_ok=True)
@@ -84,12 +97,16 @@ class DocxToLatexConverter:
                 self.handle_table(table)
                 pbar.update(1)
         
+        existing_images = set(os.listdir(self.images_dir))
         with tqdm(total=self.image_count, desc="Processing images") as pbar:
             for i in range(self.image_count):
                 img_name = f"image{i}.png"
-                with self.latex_doc.create(Figure(position='h!')) as fig:
-                    fig.add_image(f'images/{img_name}', width=NoEscape(r'0.8\textwidth'))
-                    fig.add_caption(f'Image {i+1}')
+                if img_name in existing_images:
+                    with self.latex_doc.create(Figure(position='h!')) as fig:
+                        fig.add_image(f'images/{img_name}', width=NoEscape(r'0.8\textwidth'))
+                        fig.add_caption(f'Image {i+1}')
+                else:
+                    logging.error(f"Image {i} (expected {img_name}) is missing.")
                 pbar.update(1)
         
         with tqdm(total=len(paragraphs), desc="Processing equations") as pbar:
@@ -116,7 +133,7 @@ class DocxToLatexConverter:
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Usage: python docx_to_latex_converter.py <path_to_docx_file> <output_directory>")
+        print("Usage: python main.py <path_to_docx_file> <output_directory>")
         sys.exit(1)
 
     docx_path = sys.argv[1]
@@ -125,9 +142,12 @@ if __name__ == "__main__":
     # Create the output directory if it does not exist
     os.makedirs(output_dir, exist_ok=True)
 
-    converter = DocxToLatexConverter(docx_path, output_dir)
-    converter.convert()
-
+    try:
+        converter = DocxToLatexConverter(docx_path, output_dir)
+        converter.convert()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        sys.exit(1)
 
 # For use 
 # python docx_to_latex_converter.py <path_to_docx_file> <output_directory>
